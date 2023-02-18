@@ -37,7 +37,7 @@ The Orbbec 3D camera provides three-dimensional data for the robot [Orbbec](http
 <img src="https://user-images.githubusercontent.com/30501420/216794807-49920923-b720-4ad9-a612-b6342776a7b4.png"
 </p>
 
-[https://research.ijcaonline.org/volume113/number3/pxc3901586.pdf]
+[research reference](https://research.ijcaonline.org/volume113/number3/pxc3901586.pdf)
 
 ---
 ## Tasks
