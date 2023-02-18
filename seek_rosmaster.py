@@ -17,7 +17,6 @@ class Rosmaster_Seek:
             print("---Seek-Del---")
 
 
-    # 消息处理函数，需要在循环中运行。
     # Message handler function that needs to run in a loop
     def handle_message(self):
         try:

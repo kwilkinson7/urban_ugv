@@ -9,8 +9,6 @@ import threading
 import cv2 as cv
 import sys
 
-
-
 from camera_rosmaster import Rosmaster_Camera
 
 from gevent import pywsgi
@@ -22,36 +20,33 @@ if len(sys.argv) > 1:
         g_debug = True
 print("debug=", g_debug)
 
-
-# 摄像头库
+# camera library
 g_camera = Rosmaster_Camera(debug=g_debug)
-
-
 g_ip_addr = "x.x.x.x"
 g_tcp_ip = g_ip_addr
-
 g_wifi_state = False
 g_init = False
 g_mode = 'Home'
 
-
 app = Flask(__name__)
 
+
 def get_ip_address():
+    ip = os.popen(
+        "/sbin/ifconfig eth0 | grep 'inet' | awk '{print $2}'").read()
+    ip = ip[0: ip.find('\n')]
+    if(ip == ''):
         ip = os.popen(
-            "/sbin/ifconfig eth0 | grep 'inet' | awk '{print $2}'").read()
+            "/sbin/ifconfig wlan0 | grep 'inet' | awk '{print $2}'").read()
         ip = ip[0: ip.find('\n')]
         if(ip == ''):
-            ip = os.popen(
-                "/sbin/ifconfig wlan0 | grep 'inet' | awk '{print $2}'").read()
-            ip = ip[0: ip.find('\n')]
-            if(ip == ''):
-                ip = 'x.x.x.x'
-        if len(ip) > 15:
             ip = 'x.x.x.x'
-        return ip
+    if len(ip) > 15:
+        ip = 'x.x.x.x'
+    return ip
 
-# socket TCP通信建立
+
+# socket TCP communication erection
 def start_tcp_server(ip, port):
     global g_init, g_tcp_except_count
     global g_socket, g_mode
@@ -104,7 +99,7 @@ def start_tcp_server(ip, port):
         g_mode = 'Home'
 
 
-# 初始化TCP Socket
+# initialization TCP Socket
 def init_tcp_socket():
     global g_ip_addr, g_tcp_ip
     if g_init:
@@ -127,7 +122,7 @@ def init_tcp_socket():
         print('-------------------Init TCP Socket!-------------------------')
 
 
-# 根据状态机来运行程序包含视频流返回
+# run the program according to the state machine including video stream return
 def mode_handle():
     global g_mode, g_camera
     if g_debug:
@@ -157,7 +152,6 @@ def mode_handle():
                 b'Content-Type: image/jpeg\r\n\r\n' + img_encode + b'\r\n')
 
 
-
 @app.route('/')
 def index():
     return render_template('index.html')
@@ -176,7 +170,6 @@ def video_feed():
 def init():
     init_tcp_socket()
     return render_template('init.html')
-
 
 
 if __name__ == '__main__':

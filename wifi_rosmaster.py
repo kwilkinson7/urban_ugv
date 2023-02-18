@@ -37,7 +37,6 @@ class Rosmaster_WIFI:
         # task_key.setDaemon(True)
         # task_key.start()
 
-    # 获取本机IP
     # Read the local IP address
     def get_ip_address(self):
         ip = os.popen(
@@ -53,7 +52,6 @@ class Rosmaster_WIFI:
             ip = 'x.x.x.x'
         return ip
 
-    # 按键扫描
     # Scan button
     def key_scan(self):
         if self.__debug:
@@ -62,16 +60,15 @@ class Rosmaster_WIFI:
             if GPIO.input(self.KEY1_PIN) == GPIO.LOW:
                 time.sleep(0.05)
                 if GPIO.input(self.KEY1_PIN) == GPIO.LOW:
-                    if self.key1_pressed == False:
+                    if self.key1_pressed is False:
                         self.key1_pressed = True
                         self.count = 0
                         if self.__debug:
                             print("key1_pressed start")
                     else:
                         self.count += 1
-                        # 长按K1键进入配网模式 
                         # Long press K1 to enter network mode
-                        if self.count == 40: 
+                        if self.count == 40:
                             self.bot.set_beep(50)
                             self.config_Mode = not self.config_Mode
                             if self.__debug:
@@ -84,12 +81,10 @@ class Rosmaster_WIFI:
                 self.key1_pressed = False
                 time.sleep(0.1)
 
-    # 读取当前模式，进入摄像头识别二维码时返回True，否则返回False。
     # Read the current mode, enter the camera to recognize the TWO-DIMENSIONAL code return True, otherwise return False
     def read_mode(self):
         return self.config_Mode
 
-    # LED显示WiFi连接状态，已连接灯亮，未连接灯灭。
     # LED display WiFi connection status, connected to the light, not connected to the light off
     def led_show_state(self):
         self.ip = self.get_ip_address()
@@ -99,17 +94,14 @@ class Rosmaster_WIFI:
             self.wifi_LED_ON()
         return self.ip
 
-    # 打开WiFi指示灯
     # Turn on WiFi indicator
     def wifi_LED_ON(self):
         GPIO.output(self.LED_PIN, GPIO.HIGH)
 
-    # 关闭WiFi指示灯
     # Turn off WiFi indicator
     def wifi_LED_OFF(self):
         GPIO.output(self.LED_PIN, GPIO.LOW)
 
-    # 定义解析二维码接口
     # Define and parse the TWO-DIMENSIONAL code interface
     def decodeDisplay(self, image):
         barcodes = pyzbar.decode(image)
@@ -123,7 +115,7 @@ class Rosmaster_WIFI:
             text = "{} ({})".format(barcodeData, barcodeType)
             cv2.putText(image, text, (x, y - 10),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 2)
-            a = barcodeData.find('SSID')
+            # a = barcodeData.find('SSID')
             b = barcodeData.find('|')
             SSID = barcodeData[6:b-1]
             PASSWD = barcodeData[b+2:-1]
@@ -133,7 +125,6 @@ class Rosmaster_WIFI:
                 print("[INFO] Found {} barcode: {}".format(barcodeType, barcodeData))
         return image, SSID, PASSWD
 
-    # 摄像头连接wifi, 返回IP地址和图像
     # The camera connects to wifi and returns the IP address and image
     def connect(self, frame):
         try:
@@ -156,7 +147,7 @@ class Rosmaster_WIFI:
                 cmd = "sudo nmcli dev wifi connect \'" + \
                     self.SSID + "\' password \'" + self.PASSWD + "\'"
                 os.system('echo %s | sudo -S %s' % (passwd, cmd))
-                
+
                 self.SSID = ''
                 self.PASSWD = ''
                 time.sleep(.2)
@@ -191,11 +182,11 @@ if __name__ == '__main__':
         t_start = time.time()
         my_camera = cv2.VideoCapture(0)
         cv_edition = cv2.__version__
-        if cv_edition[0]=='3':
+        if cv_edition[0] == '3':
             my_camera.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*'XVID'))
         else:
             my_camera.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter.fourcc('M', 'J', 'P', 'G'))
-        
+
         while my_camera.isOpened():
             if average:
                 success, frame = my_camera.read()
@@ -206,7 +197,7 @@ if __name__ == '__main__':
                 success, frame = my_camera.read()
                 end = time.time()
                 fps = 1 / (end - start)
-            text="FPS:" + str(int(fps))
+            text = "FPS:" + str(int(fps))
             cv2.putText(frame, text, (20, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0, 200, 0), 1)
 
             cv2.imshow("img", frame)
@@ -225,4 +216,3 @@ if __name__ == '__main__':
     cv2.destroyAllWindows()
     del my_camera
     print('wifi_rosmaster.py killed')
-

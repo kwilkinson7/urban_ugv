@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # coding=utf-8
-# Version: V1.7.3
+# Version: V2.1.0
 from flask import Flask, render_template, Response
 import socket
 import os
@@ -28,52 +28,51 @@ if len(sys.argv) > 1:
 print("debug=", g_debug)
 
 
-# 小车底层处理库
+# car bottom processing library
 g_bot = Rosmaster(debug=g_debug)
-# 启动线程接收串口数据
+# start the thread to receive serial port data
 g_bot.create_receive_threading()
-# 小车类型
+# car type
 g_car_type = 0
 
-# 摄像头库
-g_camera = Rosmaster_Camera(debug=g_debug)
+# camera library
+g_camera = Rosmaster_Camera(video_id=0x50, debug=g_debug)
+g_camera_type = g_camera.TYPE_DEPTH_CAMERA
+g_camera_state = 0
+global g_camera_usb
 
-# wifi库
+# wifi library
 g_wifi = Rosmaster_WIFI(g_bot, debug=g_debug)
-
-
-
 g_ip_addr = "x.x.x.x"
 g_tcp_ip = g_ip_addr
-
 g_wifi_state = False
 g_init = False
 g_mode = 'Home'
-
-
 app = Flask(__name__)
 
 
-# 速度控制
+# speed control
 g_speed_ctrl_xy = 100
 g_speed_ctrl_z = 100
 g_motor_speed = [0, 0, 0, 0]
 g_car_stabilize_state = 0
 
 
-# 阿克曼小车参数
-AKM_DEFAULT_ANGLE = 100
+# ackerman car parameters
+AKM_DEFAULT_ANGLE = 90
 AKM_LIMIT_ANGLE = 45
 AKM_PWMSERVO_ID = 1
 
-g_akm_def_angle = 100
+g_akm_def_angle = 90
+g_akm_ctrl_state = 0
 
-# TCP未接收命令超时计数
+# TCP unreceived command timeout count
 g_tcp_except_count = 0
 
 g_motor_speed = [0, 0, 0, 0]
 
-# 返回单片机版本号, tcp=TCP服务对象
+
+#  return the MCU version number, tcp=TCP service object
 def return_bot_version(tcp):
     T_CARTYPE = g_car_type
     T_FUNC = 0x01
@@ -89,7 +88,7 @@ def return_bot_version(tcp):
         print("tcp send:", data)
 
 
-# 返回电池电压
+# return battery voltage
 def return_battery_voltage(tcp):
     T_CARTYPE = g_car_type
     T_FUNC = 0x02
@@ -106,7 +105,7 @@ def return_battery_voltage(tcp):
     return vol / 10.0
 
 
-# 返回机械臂角度
+# returns the arm angle
 def return_arm_angle(tcp):
     T_CARTYPE = g_car_type
     T_FUNC = 0x14
@@ -135,7 +134,7 @@ def return_arm_angle(tcp):
         print("return angle_s1-s6:", angle)
         print("tcp send:", data)
 
-# 返回机械臂设置中位的状态
+# returns the status of the neutral position of the robot arm
 def return_arm_offset_state(tcp, id, state):
     T_CARTYPE = g_car_type
     T_FUNC = 0x40
@@ -147,7 +146,7 @@ def return_arm_offset_state(tcp, id, state):
         print("return arm offset state:", id, state)
         print("tcp send:", data)
 
-# 返回小车速度控制百分比
+# return the trolley speed control percentage
 def return_car_speed(tcp, speed_xy, speed_z):
     T_CARTYPE = g_car_type
     T_FUNC = 0x16
@@ -159,7 +158,8 @@ def return_car_speed(tcp, speed_xy, speed_z):
         print("speed:", speed_xy, speed_z)
         print("tcp send:", data)
 
-# 返回小车自稳状态
+
+# return to the stable state of the car
 def return_car_stabilize(tcp, state):
     T_CARTYPE = g_car_type
     T_FUNC = 0x17
@@ -172,7 +172,7 @@ def return_car_stabilize(tcp, state):
         print("tcp send:", data)
 
 
-# 返回小车当前的XYZ速度
+# return the current XYZ speed of the car
 def return_car_current_speed(tcp):
     T_CARTYPE = g_car_type
     T_FUNC = 0x22
@@ -193,7 +193,7 @@ def return_car_current_speed(tcp):
     #     print("tcp send:", data)
 
 
-# 返回阿克曼小车默认角度
+# returns the default angle of the Ackerman cart
 def return_ackerman_angle(tcp, id, angle):
     T_CARTYPE = g_car_type
     T_FUNC = 0x50
@@ -206,22 +206,113 @@ def return_ackerman_angle(tcp, id, angle):
         print("tcp send:", data)
 
 
+# return camera type
+def return_camear_type(tcp, type):
+    T_CARTYPE = g_car_type
+    T_FUNC = 0x18
+    T_LEN = 0x04
+    checknum = (T_CARTYPE + T_FUNC + T_LEN + int(type)) % 256
+    data = "$%02x%02x%02x%02x%02x#" % (T_CARTYPE, T_FUNC, T_LEN, int(type), checknum)
+    tcp.send(data.encode(encoding="utf-8"))
+    if g_debug:
+        print("return_camear_type:", int(type))
+        print("tcp send:", data)
 
-# 数值变换
+
+# numerical transformation
 def my_map(x, in_min, in_max, out_min, out_max):
     return (out_max - out_min) * (x - in_min) / (in_max - in_min) + out_min
 
 
-# 协议解析部分
+# control the X3 PLUS car
+def ctrl_car_x3plus(state):
+    if state == 0:
+        g_bot.set_car_run(0, g_car_stabilize_state)
+    elif state == 5 or state == 6:
+        speed = int(g_speed_ctrl_z * 0.7)
+        g_bot.set_car_run(state, speed)
+    else:
+        speed = int(g_speed_ctrl_xy * 0.7)
+        g_bot.set_car_run(state, speed, g_car_stabilize_state)
+
+
+# control X3 type trolley
+def ctrl_car_x3(state):
+    if state == 0:
+        g_bot.set_car_run(0, g_car_stabilize_state)
+    elif state == 5 or state == 6:
+        speed = int(g_speed_ctrl_z)
+        g_bot.set_car_run(state, speed)
+    else:
+        speed = int(g_speed_ctrl_xy)
+        g_bot.set_car_run(state, speed, g_car_stabilize_state)
+
+
+# control R2 type trolley
+def ctrl_car_r2(state):
+    global g_akm_ctrl_state
+    if state == 0:
+        if g_akm_ctrl_state > 2:
+            # wheels automatically return to center
+            g_bot.set_car_run(0, g_car_stabilize_state, 1)
+            g_akm_ctrl_state = 0
+        else:
+            g_bot.set_car_run(0, g_car_stabilize_state)
+    # elif state == 1 or state == 2:
+    #     speed = int(g_speed_ctrl_xy*1.8)
+    #     g_bot.set_car_run(state, speed)
+    else:
+        speed = int(g_speed_ctrl_xy*1.8)
+        g_bot.set_car_run(state, speed, g_car_stabilize_state)
+    g_akm_ctrl_state = state
+
+# control X1 type car
+def ctrl_car_x1(state):
+    if state == 0:
+        g_bot.set_car_run(0, g_car_stabilize_state)
+    elif state == 5 or state == 6:
+        speed = int(g_speed_ctrl_z)
+        g_bot.set_car_run(state, speed)
+    else:
+        speed = int(g_speed_ctrl_xy)
+        g_bot.set_car_run(state, speed, g_car_stabilize_state)
+
+
+# mission - dance
+def task_dance_handle():
+    angle_array = [90, 90, 90, 90, 90, 90]
+    g_bot.set_uart_servo_angle_array(angle_array, 1000)
+    time.sleep(1)
+
+    g_bot.set_uart_servo_angle(3, 0, 1000)
+    time.sleep(.001)
+
+    g_bot.set_uart_servo_angle(4, 180, 1000)
+    time.sleep(1)
+
+    g_bot.set_uart_servo_angle(1, 180, 500)
+    time.sleep(.5)
+
+    g_bot.set_uart_servo_angle(1, 0, 1000)
+    time.sleep(1)
+
+    angle_array = [90, 180-0, 180-180, 180-180, 90, 30]
+    g_bot.set_uart_servo_angle_array(angle_array, 1000)
+    time.sleep(1)
+
+
+
+# protocol analysis part
 def parse_data(sk_client, data):
     # print(data)
-    global g_mode, g_bot, g_camera, g_car_type
+    global g_mode, g_bot, g_car_type
     global g_akm_def_angle
     global g_motor_speed
     global g_speed_ctrl_xy, g_speed_ctrl_z
     global g_car_stabilize_state
+    global g_camera_type, g_camera_state, g_camera_usb
     data_size = len(data)
-    # 长度校验
+    # length check
     if data_size < 8:
         if g_debug:
             print("The data length is too short!", data_size)
@@ -230,7 +321,7 @@ def parse_data(sk_client, data):
         if g_debug:
             print("The data length error!", int(data[5:7], 16), data_size-8)
         return
-    # 和校验
+    # sum check
     checknum = 0
     num_checknum = int(data[data_size-3:data_size-1], 16)
     for i in range(0, data_size-4, 2):
@@ -242,7 +333,7 @@ def parse_data(sk_client, data):
             print("checksum error! cmd:0x%02x, calnum:%d, recvnum:%d" % (int(data[3:5], 16), checknum, num_checknum))
         return
     
-    # 小车类型匹配
+    # trolley type matching
     num_carType = int(data[1:3], 16)
     if num_carType <= 0 or num_carType > 5:
         if g_debug:
@@ -252,35 +343,45 @@ def parse_data(sk_client, data):
         if g_car_type != num_carType:
             g_car_type = num_carType
             g_bot.set_car_type(g_car_type)
+            if g_car_type == g_bot.CARTYPE_X3_PLUS:
+                g_camera_usb = Rosmaster_Camera(video_id=0x51, debug=g_debug)
+                g_camera_state = 1
+            if g_debug:
+                print("set_car_type:", g_car_type)
     
-    # 解析命令标记
+    # parsing command tokens
     cmd = data[3:5]
-    if cmd == "0F":  # 回到主界面
+    if cmd == "0F":  # enter the interface
         func = int(data[7:9])
         if g_debug:
             print("cmd func=", func)
         g_mode = 'Home'
-        if func == 0:
+        if func == 0: # front page
             return_battery_voltage(sk_client)
-        elif func == 1:
+        elif func == 1: # remote control
             return_car_speed(sk_client, g_speed_ctrl_xy, g_speed_ctrl_z)
             return_car_stabilize(sk_client, g_car_stabilize_state)
+            if g_car_type == g_bot.CARTYPE_X3_PLUS:
+                if g_camera_type == g_camera.TYPE_USB_CAMERA:
+                    return_camear_type(sk_client, 1)
+                elif g_camera_type == g_camera.TYPE_DEPTH_CAMERA:
+                    return_camear_type(sk_client, 2)
             g_mode = 'Standard'
-        elif func == 2:
+        elif func == 2: # mecanum wheel
             return_car_current_speed(sk_client)
             g_mode = 'MecanumWheel'
 
-    elif cmd == "01":  # 获取硬件版本号
+    elif cmd == "01":  # get the hardware version number
         if g_debug:
             print("get version")
         return_bot_version(sk_client)
 
-    elif cmd == "02":  # 获取电池电压
+    elif cmd == "02":  # get battery voltage
         if g_debug:
             print("get voltage")
         return_battery_voltage(sk_client)
 
-    elif cmd == "10":  # 控制小车
+    elif cmd == "10":  # control car
         num_x = int(data[7:9], 16)
         num_y = int(data[9:11], 16)
         if num_x > 127:
@@ -290,10 +391,13 @@ def parse_data(sk_client, data):
         speed_x = num_y / 100.0
         speed_y = -num_x / 100.0
         if speed_x == 0 and speed_y == 0:
-            g_bot.set_car_run(0, g_car_stabilize_state)
-        else:    
             if g_car_type == g_bot.CARTYPE_R2:
-                speed_y = my_map(speed_y, -1, 1, AKM_LIMIT_ANGLE/1000.0, AKM_LIMIT_ANGLE/-1000.0)
+                g_bot.set_car_run(0, g_car_stabilize_state, 1)
+            else:
+                g_bot.set_car_run(0, g_car_stabilize_state)
+        else:
+            if g_car_type == g_bot.CARTYPE_R2:
+                speed_y = my_map(speed_y, -1, 1, AKM_LIMIT_ANGLE/-1000.0, AKM_LIMIT_ANGLE/1000.0)
                 # speed_z = my_map(speed_y, -1, 1, 3.0, -3.0)
                 g_bot.set_car_motion(speed_x*1.8, speed_y, 0)
             else:
@@ -302,7 +406,7 @@ def parse_data(sk_client, data):
             print("speed_x:%.2f, speed_y:%.2f" % (speed_x, speed_y))
 
 
-    # 控制PWM舵机
+    # control PWM Servo
     elif cmd == "11":
         num_id = int(data[7:9], 16)
         num_angle = int(data[9:11], 16)
@@ -320,7 +424,7 @@ def parse_data(sk_client, data):
             g_bot.set_pwm_servo(num_id, num_angle)
 
 
-    # 控制机械臂
+    # control arm
     elif cmd == "12":
         num_id = int(data[7:9], 16)
         num_angle_l = int(data[9:11], 16)
@@ -333,7 +437,7 @@ def parse_data(sk_client, data):
         g_bot.set_uart_servo_angle(num_id, uart_servo_angle)
 
 
-    # 设置蜂鸣器
+    # set buzzer
     elif cmd == "13":
         num_state = int(data[7:9], 16)
         num_delay = int(data[9:11], 16)
@@ -347,7 +451,7 @@ def parse_data(sk_client, data):
                 delay_ms = num_delay * 10
         g_bot.set_beep(delay_ms)
 
-    # 读取机械臂舵机角度。
+    # read the angle of the arm servo.
     elif cmd == "14":
         num_id = int(data[7:9], 16)
         if g_debug:
@@ -355,34 +459,25 @@ def parse_data(sk_client, data):
         if num_id == 6:
             return_arm_angle(sk_client)
     
-    # 按键控制
+    # button control
     elif cmd == "15":
         num_dir = int(data[7:9], 16)
         if g_debug:
             print("btn ctl:%d" % num_dir)
-        speed = 0
-        if g_car_type == g_bot.CARTYPE_R2:
-            if num_dir == 0:
-                g_bot.set_car_run(0, g_car_stabilize_state)
-            elif num_dir == 1 or num_dir == 2:
-                speed = int(g_speed_ctrl_xy*1.8)
-                g_bot.set_car_run(num_dir, speed)
-            else:
-                speed = int(g_speed_ctrl_z*1.8)
-                g_bot.set_car_run(num_dir, speed, g_car_stabilize_state)
+        if g_car_type == g_bot.CARTYPE_X3_PLUS:
+            ctrl_car_x3plus(num_dir)
+        elif g_car_type == g_bot.CARTYPE_R2:
+            ctrl_car_r2(num_dir)
+        elif g_car_type == g_bot.CARTYPE_X3:
+            ctrl_car_x3(num_dir)
+        elif g_car_type == g_bot.CARTYPE_X1:
+            ctrl_car_x1(num_dir)
         else:    
-            if num_dir == 0:
-                g_bot.set_car_run(0, g_car_stabilize_state)
-            elif num_dir == 5 or num_dir == 6:
-                speed = g_speed_ctrl_z
-                g_bot.set_car_run(num_dir, speed)
-            else:
-                speed = g_speed_ctrl_xy
-                g_bot.set_car_run(num_dir, speed, g_car_stabilize_state)
+            print("car type error!")
         if g_debug:
-            print("car speed:%.2f" % speed)
+            print("car ctrl:", num_dir)
     
-    # 控制速度
+    # control speed
     elif cmd == '16':
         num_speed_xy = int(data[7:9], 16)
         num_speed_z = int(data[9:11], 16)
@@ -399,7 +494,7 @@ def parse_data(sk_client, data):
         if g_speed_ctrl_z < 0:
             g_speed_ctrl_z = 0
 
-    # 自稳开关
+    # self-stabilizing switch
     elif cmd == '17':
         num_stab = int(data[7:9], 16)
         if g_debug:
@@ -408,8 +503,19 @@ def parse_data(sk_client, data):
             g_car_stabilize_state = 1
         else:
             g_car_stabilize_state = 0
-    
-    # 麦克纳姆轮控制
+
+    # X3PLUS, camera switch
+    elif cmd == '18':
+        num_camera = int(data[7:9], 16)
+        if g_debug:
+            print("select camera:%d" % num_camera)
+        if num_camera == 1:
+            g_camera_type = g_camera.TYPE_USB_CAMERA
+        elif num_camera == 2:
+            g_camera_type = g_camera.TYPE_DEPTH_CAMERA
+
+
+    # mecanum wheel control
     elif cmd == '20':
         num_id = int(data[7:9], 16)
         num_speed = int(data[9:11], 16)
@@ -431,7 +537,7 @@ def parse_data(sk_client, data):
                 g_motor_speed[num_id-1] = num_speed
             g_bot.set_motor(g_motor_speed[0], g_motor_speed[1], g_motor_speed[2], g_motor_speed[3])
 
-    # 更新速度
+    # update Speed
     elif cmd == '21':
         num_speed_m1 = int(data[7:9], 16)
         num_speed_m2 = int(data[9:11], 16)
@@ -453,7 +559,7 @@ def parse_data(sk_client, data):
         g_motor_speed[3] = num_speed_m4
         g_bot.set_motor(g_motor_speed[0], g_motor_speed[1], g_motor_speed[2], g_motor_speed[3])
 
-    # 设置彩色灯带的颜色
+    # set the color of the colored light strip
     elif cmd == "30":
         num_id = int(data[7:9], 16)
         num_r = int(data[9:11], 16)
@@ -463,7 +569,7 @@ def parse_data(sk_client, data):
             print("lamp:%d, r:%d, g:%d, b:%d" % (num_id, num_r, num_g, num_b))
         g_bot.set_colorful_lamps(num_id, num_r, num_g, num_b)
 
-    # 设置彩色灯带的特效
+    # set the special effect of the colored light strip
     elif cmd == "31":
         num_effect = int(data[7:9], 16)
         num_speed = int(data[9:11], 16)
@@ -471,7 +577,7 @@ def parse_data(sk_client, data):
             print("effect:%d, speed:%d" % (num_effect, num_speed))
         g_bot.set_colorful_effect(num_effect, num_speed, 255)
 
-    # 设置彩色灯带的单色呼吸灯效果的颜色
+    # set the color of the monochromatic breathing light effect of the colored light strip
     elif cmd == "32":
         num_color = int(data[7:9], 16)
         if g_debug:
@@ -482,7 +588,7 @@ def parse_data(sk_client, data):
             g_bot.set_colorful_effect(3, 255, num_color - 1)
 
 
-    # 机械臂中位校准
+    # arm center calibration
     elif cmd == '40':
         num_cali = int(data[7:9], 16)
         if g_debug:
@@ -492,8 +598,10 @@ def parse_data(sk_client, data):
                 id = int(i+1)
                 state = g_bot.set_uart_servo_offset(id)
                 return_arm_offset_state(sk_client, id, state)
+            time.sleep(.01)
+            g_bot.set_uart_servo_torque(True)
 
-    # 机械臂归中
+    # centering the robotic arm
     elif cmd == '41':
         num_verify = int(data[7:9], 16)
         if g_debug:
@@ -505,7 +613,7 @@ def parse_data(sk_client, data):
             g_bot.set_uart_servo_angle_array(angle_array)
             time.sleep(.5)
 
-    # 机械臂扭矩开关
+    # arm torque switch
     elif cmd == '42':
         num_verify = int(data[7:9], 16)
         if g_debug:
@@ -515,8 +623,26 @@ def parse_data(sk_client, data):
         else:
             g_bot.set_uart_servo_torque(True)
 
+    # arm pose
+    elif cmd == '43':
+        num_pose = int(data[7:9], 16)
+        if g_debug:
+            print("arm pose:%d" % num_pose)
+        if num_pose == 1: # 防撞姿态
+            angle_array = [90, 180-0, 180-180, 180-180, 90, 30]
+            g_bot.set_uart_servo_angle_array(angle_array)
+            time.sleep(.2)
+        elif num_pose == 2: # 跳舞
+            task_dance = threading.Thread(target = task_dance_handle)
+            task_dance.setDaemon(True)
+            task_dance.start()
+        elif num_pose == 3: # 巡线姿态
+            angle_array = [90, 180-40, 180-180, 180-180, 90, 30]
+            g_bot.set_uart_servo_angle_array(angle_array)
+            time.sleep(.2)
 
-    # 读取阿克曼小车默认角度
+
+    # read the default angle of the Ackerman car
     elif cmd == '50':
         num_id = int(data[7:9], 16)
         if g_debug:
@@ -525,7 +651,7 @@ def parse_data(sk_client, data):
             g_akm_def_angle = g_bot.get_akm_default_angle()
             return_ackerman_angle(sk_client, AKM_PWMSERVO_ID, g_akm_def_angle)
 
-    # 临时修改阿克曼舵机的默认角度
+    # temporarily modify the default angle of the Ackerman servo
     elif cmd == '51':
         num_id = int(data[7:9], 16)
         num_angle = int(data[9:11], 16)
@@ -535,7 +661,7 @@ def parse_data(sk_client, data):
             g_akm_def_angle = num_angle
             g_bot.set_akm_default_angle(num_angle)
 
-    # 确认修改阿克曼小车默认角度
+    # confirm to modify the default angle of the Ackerman car
     elif cmd == '52':
         num_verify = int(data[7:9], 16)
         if g_debug:
@@ -544,7 +670,7 @@ def parse_data(sk_client, data):
             g_bot.set_akm_default_angle(g_akm_def_angle, True)
             time.sleep(.1)
 
-    # 控制阿克曼小车前轮舵机角度
+    # control the angle of the front wheel steering gear of the Ackerman car
     elif cmd == '53':
         num_id = int(data[7:9], 16)
         num_angle = int(data[9:11], 16)
@@ -556,7 +682,7 @@ def parse_data(sk_client, data):
             g_bot.set_akm_steering_angle(num_angle)
 
 
-# socket TCP通信建立
+# socket TCP communication erection
 def start_tcp_server(ip, port):
     global g_init, g_tcp_except_count
     global g_socket, g_mode
@@ -591,7 +717,7 @@ def start_tcp_server(ip, port):
                 if index1 < 0 or index2 <= index1:
                     continue
                 tcp_state = 5
-                # parse_data(g_socket, cmd[index1:index2 + 1])
+                parse_data(g_socket, cmd[index1:index2 + 1])
                 g_tcp_except_count = 0
             except:
                 if tcp_state == 2:
@@ -603,13 +729,13 @@ def start_tcp_server(ip, port):
                     if g_debug:
                         print("!!!----TCP Except:%d-----!!!" % tcp_state)
                 continue
-            parse_data(g_socket, cmd[index1:index2 + 1])
+            # parse_data(g_socket, cmd[index1:index2 + 1])
         print("socket disconnected!")
         g_socket.close()
         g_mode = 'Home'
 
 
-# 初始化TCP Socket
+# initialization TCP Socket
 def init_tcp_socket():
     global g_ip_addr, g_tcp_ip
     if g_init:
@@ -632,37 +758,47 @@ def init_tcp_socket():
         print('-------------------Init TCP Socket!-------------------------')
 
 
-# 根据状态机来运行程序包含视频流返回
+# run the program according to the state machine including video stream return
 def mode_handle():
     global g_mode, g_camera
     if g_debug:
         print("----------------------------mode_handle--------------------------")
-    m_fps = 0
-    t_start = time.time()
     while True:
-        if g_mode == 'Standard':
-            success, frame = g_camera.get_frame()
-            m_fps = m_fps + 1
-            fps = m_fps / (time.time() - t_start)
+        m_fps = 0
+        t_start = time.time()
+        while True:
+            if g_mode == 'Standard':
+                if g_camera_type == g_camera.TYPE_USB_CAMERA:
+                    success, frame = g_camera_usb.get_frame()
+                else:
+                    success, frame = g_camera.get_frame()
+                m_fps = m_fps + 1
+                fps = m_fps / (time.time() - t_start)
 
-            text = "FPS:" + str(int(fps))
-            if not success:
-                g_camera.clear()
+                text = "FPS:" + str(int(fps))
+                if not success:
+                    m_fps = 0
+                    t_start = time.time()
+                    if g_debug:
+                        print("-----The camera is reconnecting...")
+                    if g_camera_type == g_camera.TYPE_USB_CAMERA:
+                        g_camera_usb.reconnect()
+                    else:
+                        g_camera.reconnect()
+                    g_camera.reconnect()
+                    time.sleep(.5)
+                    continue
+                cv.putText(frame, text, (10, 25), cv.FONT_HERSHEY_TRIPLEX, 0.8, (0, 200, 0), 1)
+                ret, img_encode = cv.imencode('.jpg', frame)
+                if ret:
+                    img_encode = img_encode.tobytes()
+                    yield (b'--frame\r\n'
+                        b'Content-Type: image/jpeg\r\n\r\n' + img_encode + b'\r\n')
+            else:
+                time.sleep(.1)
                 m_fps = 0
                 t_start = time.time()
-                if g_debug:
-                    print("-----The camera is reconnecting...")
-                g_camera.reconnect()
-                time.sleep(.5)
-                continue
-            cv.putText(frame, text, (10, 25), cv.FONT_HERSHEY_TRIPLEX, 0.8, (0, 200, 0), 1)
-            ret, img_encode = cv.imencode('.jpg', frame)
-            if ret:
-                img_encode = img_encode.tobytes()
-                yield (b'--frame\r\n'
-                    b'Content-Type: image/jpeg\r\n\r\n' + img_encode + b'\r\n')
-        else:
-            time.sleep(.1)
+
 
 
 @app.route('/')
@@ -672,7 +808,6 @@ def index():
 
 @app.route('/video_feed')
 def video_feed():
-    global g_camera
     if g_debug:
         print("----------------------------video_feed--------------------------")
     return Response(mode_handle(),
@@ -686,7 +821,7 @@ def init():
 
 
 
-# 麦克纳姆轮返回速度的线程
+# mecanum wheel return speed ​​thread
 def thread_mecanum():
     while True:
         if g_mode == 'MecanumWheel':
