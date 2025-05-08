@@ -1,7 +1,5 @@
-# test_rosmaster_clean.py
-
 import time
-from ugv.rosmaster import Rosmaster
+from rosmaster import Rosmaster
 
 def main():
     bot = Rosmaster(com="/dev/myserial", debug=True)
