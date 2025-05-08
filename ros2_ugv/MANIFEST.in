@@ -1,0 +1,3 @@
+include package.xml
+recursive-include launch *.launch.py
+recursive-include config *.yaml
