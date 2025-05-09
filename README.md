@@ -7,7 +7,7 @@
 
 ## Description
 
-An aluminum chassis unmanned groud vehicle (UGM) using ROS2.  The chassis and components are purchased as an existing kit from [yahboom](https://category.yahboom.net/).  The kit originally comes loaded with ROS Melodic and Ubuntu 18.04.  The OS will be updated and [ROS2 Humble Hawksbill](https://docs.ros.org/en/humble/index.html) utilized.  A ground control station will be created with [QT Creator](https://www.qt.io/product/development-tools).  All code will be written with Python and later optimized with C/C++.  I may add a secondary controller and seperate deterministic and AI code.
+An aluminum chassis unmanned groud vehicle (UGV) using ROS2.  The chassis and components are purchased as an existing kit from [yahboom](https://category.yahboom.net/).  The kit originally comes loaded with ROS Melodic and Ubuntu 18.04.  The OS will be updated and [ROS2 Humble Hawksbill](https://docs.ros.org/en/humble/index.html) utilized.  A ground control station will be created with [QT Creator](https://www.qt.io/product/development-tools).  All code will be written with Python and later optimized with C/C++.  I may add a secondary controller and seperate deterministic and AI code.
 
 ---
 ## Components
