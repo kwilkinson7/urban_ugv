@@ -5,7 +5,7 @@ import os
 
 def generate_launch_description():
     config = os.path.join(
-        get_package_share_directory('ros2_ugv'),
+        get_package_share_directory('ugv_ros2'),
         'config',
         'ps4.config.yaml'
     )
@@ -25,7 +25,7 @@ def generate_launch_description():
             remappings=[('/cmd_vel', '/cmd_vel')]
         ),
         Node(
-            package='ros2_ugv',
+            package='ugv_ros2',
             executable='motion_node',
             name='motion_node'
         )

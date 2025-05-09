@@ -2,7 +2,7 @@ from setuptools import setup
 import os
 from glob import glob
 
-package_name = 'ros2_ugv'
+package_name = 'ugv_ros2'
 
 setup(
     name=package_name,
@@ -23,7 +23,7 @@ setup(
     license='MIT',
     entry_points={
         'console_scripts': [
-            'motion_node = ros2_ugv.motion_node:main',
+            'motion_node = ugv_ros2.motion_node:main',
         ],
     },
 )

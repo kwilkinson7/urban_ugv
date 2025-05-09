@@ -3,8 +3,8 @@
 import rclpy
 from rclpy.node import Node
 from geometry_msgs.msg import Twist
-from ros2_ugv.rosmaster import Rosmaster
-from ros2_ugv.motion_controller import MotionController
+from ugv_ros2.rosmaster import Rosmaster
+from ugv_ros2.motion_controller import MotionController
 
 class MotionNode(Node):
     def __init__(self):

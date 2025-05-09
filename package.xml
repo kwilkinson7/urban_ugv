@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
 <package format="3">
-  <name>ros2_ugv</name>
+  <name>ugv_ros2</name>
   <version>0.1.0</version>
   <description>UGV controller with low-level and motion control abstraction.</description>
 
