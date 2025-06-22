@@ -8,9 +8,33 @@
 
 ## Description
 
-A ROS 2-based urban unmanned ground vehicle (UGV) built on an aluminum chassis. The platform is derived from a Yahboom robot kit, originally designed with ROS Melodic and Ubuntu 18.04. This project modernizes the stack using **Ubuntu 20.04** (JetPack 5.x), **Jetson Orin Nano (upgraded to Super)**, and **ROS 2 Humble Hawksbill**.
+A ROS 2-based urban unmanned ground vehicle (UGV) built on an aluminum chassis. The platform is derived from a Yahboom robot kit, originally designed with ROS Melodic and Ubuntu 18.04. This project modernizes the stack using **Ubuntu 22.04** (JetPack 6.2), **Jetson Orin Nano (upgraded to Super)**, and **ROS 2 Humble Hawksbill**.
 
-The robot will support full 2D SLAM using LIDAR and vision-based 3D mapping. A modular ROS 2 package structure is used, and a **Qt-based ground control station** is planned. The system will initially be developed in **Python**, with performance-critical components later optimized in **C++**. A possible future addition is a secondary MCU for separating deterministic control from AI tasks.
+System Overview and Roadmap
+The robot will support 2D SLAM using LIDAR and vision-based 3D mapping for robust indoor and urban navigation. A modular ROS 2 package structure is used to keep components maintainable and scalable across multiple ground robot platforms.
+
+The system is being developed in Python, with plans to optimize performance-critical modules in C++. A secondary MCU may be introduced to separate real-time deterministic control (e.g. motor commands, safety checks) from higher-level AI and perception tasks.
+
+A web-based ground control station is planned using Flask to expose a REST API. This interface will allow remote operation, status monitoring, and visualization through a browser-based frontend. This approach improves portability across devices compared to a native desktop application like Qt.
+
+Machine Learning and Semantic Mapping
+The robot will incorporate machine learning for detecting and tracking objects, people, and features in the environment. These semantic detections will inform the navigation stack and may be used to:
+
+Avoid dynamic obstacles (e.g. pedestrians, pets)
+
+Recognize terrain or scene types (e.g. sidewalk, doorway)
+
+Improve localization with visual landmarks
+
+In parallel, semantic features will be stored in a GeoJSON-like format, enabling:
+
+Persistent storage of object detections with spatial data
+
+Integration into a semantic map
+
+Inter-robot data sharing and contextual mission planning
+
+Future integration with PostGIS is planned for outdoor robots, enabling advanced spatial reasoning, geofencing, and spatial queries from the ground control station.
 
 ---
 
