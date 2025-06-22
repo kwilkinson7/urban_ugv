@@ -1,0 +1,32 @@
+<?xml version="1.0"?>
+<package format="3">
+  <name>ugv_bringup</name>
+  <version>0.0.1</version>
+  <description>Launch files and integration for UGV system bringup.</description>
+  <maintainer email="kendall@digitalmindrobotics.com">Kendall</maintainer>
+  <license>MIT</license>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+
+  <!-- Required for launch files -->
+  <exec_depend>launch</exec_depend>
+  <exec_depend>launch_ros</exec_depend>
+  <exec_depend>ament_index_python</exec_depend>
+
+  <!-- Bringup dependencies -->
+  <exec_depend>rclpy</exec_depend>
+  <exec_depend>ugv_description</exec_depend>
+  <exec_depend>ugv_control</exec_depend>
+  <exec_depend>rplidar_ros</exec_depend>
+  <exec_depend>astra_camera</exec_depend>
+  <exec_depend>elrs_teleop</exec_depend>
+  <exec_depend>slam_toolbox</exec_depend>
+  <exec_depend>nav2_bringup</exec_depend>
+
+  <!-- Optional if using parameters -->
+  <exec_depend>yaml_cpp_vendor</exec_depend>
+
+  <export>
+    <build_type>ament_python</build_type>
+  </export>
+</package>
